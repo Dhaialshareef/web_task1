@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teachable Machine - Upload and Predict</title>
+
+    <!-- تضمين مكتبات Firebase (ES Modules) -->
+    <script type="module">
+        // استيراد مكتبات Firebase
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.9.3/firebase-app.js';
+        import { getDatabase, ref, onValue, set, get } from 'https://www.gstatic.com/firebasejs/9.9.3/firebase-database.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBnBaDOzZGaIj8bynCj7uWVJWAKxX3mT0M",
+            authDomain: "test-1d12d.firebaseapp.com",
+            databaseURL: "https://test-1d12d-default-rtdb.firebaseio.com",
+            projectId: "test-1d12d",
+            storageBucket: "test-1d12d.firebasestorage.app",
+            messagingSenderId: "949740836694",
+            appId: "1:949740836694:web:4656f67f1838d68553e8f7",
+            measurementId: "G-7NRFS0Z34P"
+        };
+
+        // تهيئة Firebase باستخدام بيانات الاتصال
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app); // استخدام قاعدة البيانات Realtime
+
+        let model, labelContainer, maxPredictions;
+
+        // تحميل النموذج
+        async function init() {
+            const modelBaseURL = "https://teachablemachine.withgoogle.com/models/rcaXClzdZ/";
+            const modelURL = modelBaseURL + "model.json";
+            const metadataURL = modelBaseURL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            // إنشاء مساحة لعرض النتائج
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+
+            // قراءة العداد من Firebase وعرضه على الصفحة
+            const counterRef = ref(database, 'detectionCounter');
+            onValue(counterRef, (snapshot) => {
+                const counterValue = snapshot.val() || 0;
+                document.getElementById('counter-display').textContent = counterValue;
+            });
+        }
+
+        // التنبؤ بالصورة المرفوعة
+        async function predictImage(imageElement) {
+            const prediction = await model.predict(imageElement);
+            // عرض التوقعات
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction =
+                    prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+            }
+
+            // زيادة العداد في قاعدة البيانات عند وجود التنبؤ
+            const counterRef = ref(database, 'detectionCounter');
+            get(counterRef).then((snapshot) => {
+                let currentCount = snapshot.val() || 0;
+                currentCount += 1;
+
+                // تحديث العداد
+                set(counterRef, currentCount);
+            });
+        }
+
+        // التعامل مع رفع الصورة
+        document.getElementById("image-input").addEventListener("change", (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const imgElement = document.getElementById("uploaded-image");
+                imgElement.src = URL.createObjectURL(file);
+                imgElement.style.display = "block";
+                imgElement.onload = () => {
+                    predictImage(imgElement); // تحليل الصورة عند تحميلها
+                };
+            }
+        });
+
+        // إضافة منطق لإعادة تعيين العداد عند الضغط على الزر
+        document.getElementById("reset-button").addEventListener("click", () => {
+            const counterRef = ref(database, 'detectionCounter');
+            set(counterRef, 0); // إعادة تعيين العداد إلى 0
+        });
+
+        // بدء تحميل النموذج عند فتح الصفحة
+        init();
+    </script>
+
+    <!-- تضمين مكتبات Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- إضافة خاصية الوضع الداكن -->
+    <script src="/docs/5.3/assets/js/color-modes.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #uploaded-image {
+            max-width: 100%;
+            height: auto;
+            display: none;
+            margin-top: 20px;
+        }
+        .container {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body data-bs-theme="dark">
+    <div class="container">
+        <h1 class="text-center text-light">Teachable Machine Image Model</h1>
+        <p class="text-center text-light">Select an image.</p>
+
+        
+        <div class="mb-3 text-center">
+            <input type="file" accept="image/*" id="image-input" class="form-control w-50 mx-auto" />
+        </div>
+        
+        <div class="text-center">
+            <img id="uploaded-image" src="" alt="Uploaded Image" />
+        </div>
+        
+        <div id="label-container" class="text-center mt-3 text-light"></div>
+        
+        <!-- عرض العداد على الصفحة -->
+        <p class="text-center text-light">Number of predictions: <span id="counter-display">0</span></p>
+
+        <!-- زر لإعادة تعيين العداد -->
+        <div class="text-center">
+            <button id="reset-button" class="btn btn-danger">Reset the counter</button>
+        </div>
+    </div>
+
+    <!-- تضمين مكتبات JavaScript الخاصة بـ Bootstrap -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- تضمين TensorFlow و Teachable Machine -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
